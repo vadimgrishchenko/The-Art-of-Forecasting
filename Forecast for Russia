@@ -1,0 +1,371 @@
+'0. Preparation’ 
+
+'Close all'
+close @all
+
+'Create workfile'
+
+'Import the data'
+import C:\Users\1\Desktop\data_corona_Russia.xlsx range="data" @freq d  @rename infected_total x @rename first_differences z @rename second_differences w @rename second_differences_relative u
+
+'On a personal laptop
+'C:\Users\1\Desktop\
+
+'On the computer at work
+'C:\Users\GrishchenkoVO\Desktop\
+
+
+
+'*************************************************
+'1.Data mining        
+'*************************************************
+
+'1.1. Graphs of raw data
+freeze(graph) x.line(m)
+
+'1.2. Unit root tests
+
+
+'ADF tests
+freeze(x_adf1_results) x.uroot(adf,none,dif=0) 
+freeze(x_adf2_results) x.uroot(adf,const,dif=0) 
+freeze(x_adf3_results) x.uroot(adf,const,trend,dif=0) 
+freeze(x_adf1_1_results) x.uroot(adf,none,dif=1) 
+freeze(x_adf2_1_results) x.uroot(adf,const,dif=1) 
+freeze(x_adf3_1_results) x.uroot(adf,const,trend,dif=1) 
+freeze(x_adf1_2_results) x.uroot(adf,none,dif=2) 
+freeze(x_adf2_2_results) x.uroot(adf,const,dif=2) 
+freeze(x_adf3_2_results) x.uroot(adf,const,trend,dif=2)
+
+'KPSS tests
+freeze(x_kpss1_results) x.uroot(kpss,const,dif=0) 
+freeze(x_kpss2_results) x.uroot(kpss,const,trend,dif=0) 
+freeze(x_kpss1_1_results) x.uroot(kpss,const,dif=1) 
+freeze(x_kpss2_1_results) x.uroot(kpss,const,trend,dif=1) 
+freeze(x_kpss1_2_results) x.uroot(kpss,const,dif=2) 
+freeze(x_kpss2_2_results) x.uroot(kpss,const,trend,dif=2) 
+
+
+'1.3. Structural break tests
+
+'To find out if there were any structural changes in the variable's behaviour
+equation eq_geom_rw.ls log(u) c log(u(-1)) 
+freeze(breakpoint_test)  eq_geom_rw.ubreak 5
+
+
+'*************************************************
+'2. Estimation of models, analysis of residuals
+
+'*************************************************
+
+'Time series models
+
+'2.1. Exponential smoothing
+
+'2.1.1. Double exponential smoothing - ARIMA (0,2,2)
+
+smooth(d,0.9) x x_ses
+genr x_ses_resids=x-x_ses
+group ses x x_ses x_ses_resids
+freeze(graph_x_ses_resids) x_ses_resids.line(m)
+freeze(graph_x_ses) x_ses.line(m)
+freeze(graph_ses) ses.line
+
+'2.1.2. Linear exponential smoothing - ARIMA (0,2,2)
+smooth(n,0.9,0.9) x x_les
+genr x_les_resids=x-x_les
+group les x x_les x_les_resids
+freeze(graph_x_les_resids) x_les_resids.line(m)
+freeze(graph_x_les) x_les.line(m)
+freeze(graph_les) les.line
+
+
+'2.2. Polynomial
+genr t=@trend +1
+equation eq_polynom.ls x c t t^2 t^3 
+freeze(polynom_resids) eq_polynom.resids(g)
+
+'2.3. Random walks  - ARIMA (0,d,0)
+equation eq_rw_1.ls x c t x(-1) 
+freeze(rw_1_resids) eq_rw_1.resids(g)
+equation eq_rw_2.ls z c t z(-1) 
+freeze(rw_2_resids) eq_rw_2.resids(g)
+equation eq_rw_3.ls w c t w(-1) 
+freeze(rw_3_resids) eq_rw_3.resids(g)
+
+'2.4. Autoregressions - ARIMA (p,d,0)
+equation eq_ar_1.ls x c ar(1)
+freeze(ar_1_resids) eq_ar_1.resids(g)
+equation eq_ar_2.ls z c ar(1) 
+freeze(ar_2_resids) eq_ar_2.resids(g)
+equation eq_ar_3.ls w c ar(1) 
+freeze(ar_3_resids) eq_ar_3.resids(g)
+
+'2.5. Geometric random walk
+equation eq_geom_rw.ls log(u) c log(u(-1)) 
+freeze(geom_rw_resids) eq_geom_rw.resids(g)
+
+
+
+'*************************************************
+'3. Out-of-sample forecast
+
+'*************************************************
+
+
+delete(noerr) forecastplot
+
+smpl @all
+
+'Name of the variable
+%v1="u"
+%v2="x"
+
+'First date of the sample
+%T1="3/16/2020"
+%begin_data_smpl=%T1
+
+'Last date of the estimation sample
+%T2="4/20/2020"
+%end_data_estim_smpl=%T2
+
+'Last date of the forecasting sample
+%T3="5/2/2020"
+%end_data_forec_smpl=%T3
+
+'Length of the estimation sample
+!n1=34
+!n2=36
+
+'Length of the forecasting sample
+!f=12
+
+'Number of models
+!mod_num=2
+
+'Number of autoregressive lags
+!n_autoregressive=1
+
+'By default, we use a fixed sample strategy
+
+'================= Main Program ========================
+
+'Create an empty matrix for forecast statistics
+
+matrix(1,!mod_num) BIAS=0
+matrix(1,!f) for_MPE=0
+matrix(1,!mod_num) MPE=0
+matrix(1,!mod_num) MAE=0
+matrix(1,!f) for_MAPE=0
+matrix(1,!mod_num) MAPE=0
+matrix(1,!mod_num) SE=0
+matrix(1,!mod_num) MSE=0
+matrix(1,!mod_num) RMSE=0
+matrix(1,!mod_num) BIAS_proportion =0
+matrix(1,!mod_num) Variance_proportion =0
+matrix(1,!mod_num) Covariance_proportion=0
+matrix(1,!mod_num) Theil_U1=0
+matrix(1,!mod_num) Theil_U2=0
+matrix(1,!f) Theil_U2_num=0
+matrix(1,!f) Theil_U2_denom=0
+matrix(1,!mod_num) MASE=0
+
+
+'------------------------------------------------------------------------------------------------
+'ESTIMATION
+'------------------------------------------------------------------------------------------------
+delete(noerr) forecastplot1
+delete(noerr) forecastplot2
+delete(noerr) forecastplots
+delete(noerr) compare_forecasts_plot
+delete(noerr) fsmpl1
+delete(noerr) fsmpl2
+	
+
+'Run an ols equation for each specification of the model
+smpl {%begin_data_smpl} {%end_data_estim_smpl}
+		
+'Models
+equation eq01.ls log(u) c log(u(-1)) 
+equation eq02.ls x c t t^2 t^3 
+	
+'Create a random walk series (a benchmark)
+smpl @first+1 @last
+series rw=x (-!n_autoregressive)
+series rw_f_errors=rw - x 
+
+
+	
+'------------------------------------------------------------------------------------------------
+'FORECASTING
+'------------------------------------------------------------------------------------------------
+
+for !k = 1 to !mod_num
+
+	'Make a forecast for each specification, save forecast values  
+	%begin_data_forec_smpl=%end_data_estim_smpl+"+1"
+	sample fsmpl{!k}  {%begin_data_forec_smpl} {%end_data_forec_smpl}
+	smpl fsmpl{!k} 
+	eq01.forecast eq01_f1 eq01_f_se1
+	eq02.forecast eq02_f2 eq02_f_se2
+
+	
+	
+	'Convert {eq0{!k}_f{!k} from series to vectors
+	
+	'Create vector 
+ 	vector eq0{!k}_e{!k} 
+	
+	'Calculate adjusted errors
+	
+	smpl %T1 %T2
+	series eq01_f_adjusted = x
+
+	smpl fsmpl1
+	series eq01_f_adjusted = (eq01_f1-1)*z+z + x
+
+	smpl @all
+	series  eq01_f_errors = eq01_f_adjusted - {%v2}
+	series  eq02_f_errors = eq02_f2 -  {%v2}
+	series f1= eq01_f_adjusted
+	series f2=eq02_f2 
+
+	'Convert {%v}_e from series to vectors
+  	
+	'Fill the vector with recorded forecast errors and initial values of the variable
+	stom(eq0{!k}_f_errors,eq0{!k}_e{!k})
+
+	'Draw a graph of models' forecasts with 2 standard errors
+	delete(noerr) forecastplot1
+	delete(noerr) forecastplot2 
+	graph forecastplot1 eq01_f_adjusted (eq01_f_adjusted+2*((eq01_f_se1-1)*z+z+x)) (eq01_f1-2*((eq01_f_se1-1)*z+z+x))
+	graph forecastplot2 eq02_f2 (eq02_f2+2*eq02_f_se2) (eq02_f2-2*eq02_f_se2)
+	'show forecastplot1
+	'show forecastplot2
+
+
+'-----------------------------------------------------------------------------------
+'FORECAST STATISTICS CALCULATION
+'-----------------------------------------------------------------------------------
+
+	for !i=1 to !f
+
+		'Calculate auxiliary statistics
+		
+		for_MPE(1,!i)=eq0{!k}_e{!k}(!i+!n{!k}) / {%v2}(!i+!n{!k})
+		for_MAPE(1,!i)=@abs(eq0{!k}_e{!k}(!i+!n{!k})/{%v2}(!i+!n{!k}))
+		Theil_U2_num(1,!i)=(eq0{!k}_f_errors(!i+!n{!k})/{%v2}(!i+!n{!k}-1))^2
+		Theil_U2_denom(1,!i)=(rw_f_errors(!i+!n{!k})/{%v2}(!i+!n{!k}-1))^2
+
+	next 
+
+	'Create an auxiliary variable for forecast stats calculation
+	smpl @all
+	series {%v2}_for_stats=0
+
+	smpl fsmpl{!k} 
+	
+	{%v2}_for_stats={%v2}
+	
+	'Calculate forecast stats
+
+	'#1 
+	BIAS(1,!k)=@sum(eq0{!k}_f_errors) / (!f)
+	'#2 
+	MPE(1,!k)=@sum(for_MPE(1,!i)) / (!f)  
+	'#3
+	MAE(1,!k)=@sum(@abs(eq0{!k}_f_errors)) / !f
+	'#4
+	MAPE(1,!k)=100*@sum(for_MAPE(1,!i))/!f 
+	'#5
+	SE(1,!k)=@sqrt(@var(eq0{!k}_f_errors)*(!f)/(!f-1))
+	'#6
+	MSE(1,!k)=@sumsq(eq0{!k}_f_errors) / !f
+	'#7
+	RMSE(1,!k)=@sqrt(MSE(1,!k))
+	'#8
+	BIAS_proportion(1,!k)=(@sum(eq0{!k}_f_errors) / !f)^2/(@sumsq(eq0{!k}_f_errors) / !f)
+	'#9
+	Variance_proportion(1,!k)=(@sqrt(@var(f{!k}))-@sqrt(@var({%v2}_for_stats)))^2/(@sumsq(eq0{!k}_f_errors) / !f)
+	'#10
+	Covariance_proportion(1,!k)=2*(1-@cor(f{!k},{%v2}_for_stats))*@sqrt(@var(f{!k}))*@sqrt(@var({%v2}_for_stats))/(@sumsq(eq0{!k}_f_errors) / !f)
+	'#11
+	Theil_U1(1,!k)=@theil({%v2},f{!k})
+	'#12
+	Theil_U2(1,!k)=@sqrt(@sum(Theil_U2_num(1,!i))/@sum(Theil_U2_denom(1,!i)))
+	'#13
+	MASE(1,!k)=MAE(1,!k) / @sum(@abs(rw_f_errors)) / (!f)
+	
+'------------------------------------------------------------------------------------------------------------------
+
+next
+
+
+'-----------------------------------------------------------------------------------
+	'FORECAST CHARTS
+'-----------------------------------------------------------------------------------
+	
+	'Rename variables for better representation
+	rename eq01_f_adjusted Grishchenko_model_forecast
+	rename eq02_f2 Polinomial_model_forecast
+	
+	'Make a graph and save it to disk
+	group compare_forecasts Grishchenko_model_forecast Polinomial_model_forecast x 
+	smpl %T1 %T3
+	graph compare_forecasts__plot compare_forecasts
+	show compare_forecasts__plot
+	compare_forecasts__plot.save(t=pdf) C:\Users\1\Desktop\figures\Coronavirus_Russia\compare_forecasts__plot
+
+
+'-----------------------------------------------------------------------------------
+	'TABLE WITH STATS
+'-----------------------------------------------------------------------------------
+
+
+delete(noerr) results
+ 
+for !j=1 to !mod_num
+
+     
+	'Put stats in a table and save it to disk
+
+	table(14,!mod_num+1) results
+
+	results(1,1)="EQUATION"
+	results (2,1)="BIAS"
+	results (3,1)="MPE"
+	results (4,1)="MAE"
+	results (5,1)="MAPE"    
+	results (6,1)="SE" 
+	results (7,1)="MSE"
+	results (8,1)="RMSE"
+	results (9,1)="BIAS_prop"
+	results (10,1)="Var_prop"
+	results (11,1)="Covar_prop"
+	results (12,1)="Theil_U1"
+	results (13,1)="Theil_U2"
+	results (14,1)="MASE"
+	
+	results(1,2)=@str(1)
+	results(1,3)=@str(2)
+
+	results(2,!j+1)=@str(BIAS(1,!j),"f2.0") 
+	results(3,!j+1)=@str(MPE(1,!j),"f2.3")
+	results(4,!j+1)=@str(MAE(1,!j),"f2.0")
+	results(5,!j+1)=@str(MAPE(1,!j),"f2.1")
+	results(6,!j+1)=@str(SE(1,!j),"f2.0")
+	results(7,!j+1)=@str(MSE(1,!j),"f2.0")
+	results(8,!j+1)=@str(RMSE(1,!j),"f2.0")
+	results(9,!j+1)=@str(BIAS_proportion(1,!j),"f2.3")
+	results(10,!j+1)=@str(Variance_proportion(1,!j),"f2.3")
+	results(11,!j+1)=@str(Covariance_proportion(1,!j),"f2.3")
+	results(12,!j+1)=@str(Theil_U1(1,!j),"f2.3")
+	results(13,!j+1)=@str(Theil_U2(1,!j),"f2.3")
+	results(14,!j+1)=@str(MASE(1,!j),"f2.3")
+
+	
+next
+
+show results
+results.save(t=pdf) C:\Users\1\Desktop\figures\Coronavirus_Russia\results
+
